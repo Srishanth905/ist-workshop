@@ -1,22 +1,35 @@
 import { useEffect, useState } from 'react'
 import {
-  ArrowDownRight,
   ArrowLeft,
   ArrowUpRight,
   Check,
   CircleAlert,
-  Compass,
+  LayoutGrid,
+  MapPin,
   Search,
   TicketCheck,
   UsersRound,
   X,
+  Zap,
 } from 'lucide-react'
 import { api, API_BASE_URL } from './api.js'
 
 const USER_ID_STORAGE_KEY = 'ist-workshop-user-id'
+const EVENT_IMAGES = [
+  'https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&w=1200&q=85',
+  'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=1200&q=85',
+  'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=85',
+  'https://images.unsplash.com/photo-1524179996458-4c8b7b18b5f5?auto=format&fit=crop&w=1200&q=85',
+  'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=85',
+]
+const REGISTRABLE_STATUSES = new Set(['open', 'upcoming', 'published', 'active', 'live'])
 
 function displayStatus(status) {
   return String(status || 'unknown').replaceAll('_', ' ')
+}
+
+function canRegister(status) {
+  return REGISTRABLE_STATUSES.has(String(status || '').toLowerCase())
 }
 
 function getErrorMessage(error) {
@@ -55,9 +68,10 @@ export default function App() {
     loadEvents()
   }, [])
 
-  const openCount = events.filter((event) => String(event.status).toLowerCase() === 'open').length
+  const openCount = events.filter((event) => canRegister(event.status)).length
+  const totalCapacity = events.reduce((total, event) => total + (Number(event.capacity) || 0), 0)
   const filteredEvents = events.filter((event) => {
-    const matchesStatus = filter === 'all' || String(event.status).toLowerCase() === filter
+    const matchesStatus = filter === 'all' || canRegister(event.status)
     const matchesSearch = String(event.title || '').toLowerCase().includes(query.trim().toLowerCase())
     return matchesStatus && matchesSearch
   })
@@ -125,114 +139,141 @@ export default function App() {
   )
 
   return (
-    <main className="site-shell">
-      <header className="topbar">
-        <a className="wordmark" href="#top" aria-label="IST Workshop home">
-          <span className="wordmark-mark">i</span>
-          <span>IST <b>/</b> WORKSHOP</span>
+    <main className="dashboard-shell" id="top">
+      <header className="dashboard-header">
+        <a className="campus-brand" href="#top" aria-label="CampusPulse home">
+          <span className="brand-mark"><Zap size={19} fill="currentColor" /></span>
+          <span>Campus<b>Pulse</b></span>
         </a>
-        <div className="topbar-right">
-          <span className="api-state"><span className="api-dot" /> LIVE API</span>
-          <button className="my-pass-button" onClick={showMyRegistrations} type="button">
-            <TicketCheck size={17} strokeWidth={1.8} /> My registrations
+        <nav className="main-nav" aria-label="Main navigation">
+          <a className="nav-active" href="#events"><LayoutGrid size={16} /> Explore Events</a>
+          <button onClick={showMyRegistrations} type="button"><TicketCheck size={16} /> My Registrations</button>
+        </nav>
+        <div className="header-actions">
+          <span className="connection-pill"><span /> API connected</span>
+          <button className="registrations-button" onClick={showMyRegistrations} type="button">
+            <TicketCheck size={16} /> My passes
           </button>
         </div>
       </header>
 
-      <section className="intro" id="top">
-        <div className="intro-copy">
-          <div className="eyebrow"><span className="eyebrow-line" /> LEARN TOGETHER, BUILD WHAT'S NEXT</div>
-          <h1>Make room<br />for <em>what's next.</em></h1>
-          <p>Small-group workshops for curious minds. Find a session, bring your questions, leave with something new.</p>
-          <a className="intro-link" href="#sessions">Explore sessions <ArrowDownRight size={17} /></a>
+      <div className="connection-strip">
+        <span className="connection-led" />
+        <span>LIVE CAMPUS FEED</span>
+        <span className="strip-divider">/</span>
+        <code>GET /api/events</code>
+        <span className="strip-spacer" />
+        <span>Connected to <b>{new URL(API_BASE_URL).hostname}</b></span>
+      </div>
+
+      <section className="dashboard-hero" aria-labelledby="hero-title">
+        <div className="hero-copy">
+          <div className="hero-kicker"><span /> CAMPUS IS IN SESSION</div>
+          <h1 id="hero-title">Find your next<br /><em>campus moment.</em></h1>
+          <p>Discover what's happening around you. Browse the live board and find a room worth being in.</p>
+          <label className="hero-search">
+            <Search size={19} />
+            <input onChange={(event) => setQuery(event.target.value)} placeholder="Search campus events" value={query} />
+            <a href="#events" aria-label="Jump to events"><ArrowUpRight size={18} /></a>
+          </label>
         </div>
-        <div className="intro-image-wrap" aria-label="People gathered at a creative workshop" role="img">
-          <div className="intro-image" />
-          <div className="image-caption"><span>IDEAS ARE BETTER, SHARED.</span><span>IST / FIELD NOTES 01</span></div>
-          <div className="image-stamp"><Compass size={18} /><span>OPEN<br />THE ROOM</span></div>
+        <div className="hero-photo" role="img" aria-label="Students gathered for a campus event">
+          <img src={EVENT_IMAGES[0]} alt="Students gathering at a campus event" />
+          <div className="photo-shade" />
+          <div className="photo-label"><span className="photo-live-dot" /> LIVE FROM CAMPUS</div>
+          <div className="hero-photo-caption">
+            <span>MAKE THE MOST OF YOUR<br />TIME ON CAMPUS.</span>
+            <span>IST / {new Date().getFullYear()}</span>
+          </div>
         </div>
       </section>
 
-      <section className="session-section" id="sessions">
-        <div className="section-heading">
+      <section className="metric-row" aria-label="Live event statistics">
+        <div className="metric-card"><span>EVENTS ON THE BOARD</span><strong>{loading ? '—' : events.length.toString().padStart(2, '0')}</strong><small>Live from your database</small></div>
+        <div className="metric-card metric-accent"><span>UPCOMING SESSIONS</span><strong>{loading ? '—' : openCount.toString().padStart(2, '0')}</strong><small>Ready to explore</small></div>
+        <div className="metric-card"><span>PLACES ACROSS EVENTS</span><strong>{loading ? '—' : totalCapacity.toLocaleString()}</strong><small>Combined event capacity</small></div>
+        <div className="metric-illustration"><span>YOUR CAMPUS,<br />YOUR NEXT STORY.</span><Zap size={25} fill="currentColor" /></div>
+      </section>
+
+      <section className="events-section" id="events">
+        <div className="events-heading">
           <div>
-            <div className="eyebrow"><span className="eyebrow-line" /> THE PROGRAMME</div>
-            <h2>Find your next session<span className="heading-period">.</span></h2>
+            <div className="section-kicker"><span /> THE LIVE BOARD</div>
+            <h2>Explore events</h2>
           </div>
-          <div className="session-total"><strong>{events.length.toString().padStart(2, '0')}</strong><span>SESSIONS<br />ON THE BOARD</span></div>
+          <p>Real sessions from the CampusPulse events feed.</p>
         </div>
 
-        <div className="toolbar">
-          <div className="filters" role="group" aria-label="Filter events">
+        <div className="events-toolbar">
+          <div className="event-filters" role="group" aria-label="Filter events">
             {[
-              { id: 'all', label: 'All sessions', count: events.length },
-              { id: 'open', label: 'Open', count: openCount },
+              { id: 'all', label: 'All events', count: events.length },
+              { id: 'open', label: 'Upcoming', count: openCount },
             ].map((item) => (
               <button
                 aria-pressed={filter === item.id}
-                className={`filter-button ${filter === item.id ? 'is-selected' : ''}`}
+                className={`event-filter ${filter === item.id ? 'selected' : ''}`}
                 key={item.id}
                 onClick={() => setFilter(item.id)}
                 type="button"
               >
+                {item.id === 'all' && <LayoutGrid size={15} />}
                 {item.label}<span>{item.count}</span>
               </button>
             ))}
           </div>
-          <label className="search-box">
-            <Search size={17} strokeWidth={1.8} />
-            <input onChange={(event) => setQuery(event.target.value)} placeholder="Search sessions" value={query} />
-            <kbd>/</kbd>
-          </label>
+          <span className="results-label">{loading ? 'LOADING FEED' : `${filteredEvents.length} RESULTS`}</span>
         </div>
 
         {loading ? (
-          <div className="event-grid" aria-label="Loading sessions">
-            {[0, 1, 2].map((item) => <div className="event-skeleton" key={item} />)}
+          <div className="dashboard-event-grid" aria-label="Loading events">
+            {[0, 1, 2].map((item) => <div className="dashboard-skeleton" key={item} />)}
           </div>
         ) : loadError ? (
-          <div className="state-panel error-panel">
-            <CircleAlert size={20} />
-            <div><strong>Sessions didn't load</strong><p>{loadError}</p></div>
-            <button className="text-button" onClick={loadEvents} type="button">Try again <ArrowUpRight size={16} /></button>
+          <div className="dashboard-state error-state">
+            <CircleAlert size={21} />
+            <div><strong>Couldn’t load the live board</strong><p>{loadError}</p></div>
+            <button className="retry-button" onClick={loadEvents} type="button">Retry <ArrowUpRight size={16} /></button>
           </div>
         ) : filteredEvents.length ? (
-          <div className="event-grid">
-            {filteredEvents.map((event, index) => {
-              const isOpen = String(event.status).toLowerCase() === 'open'
-              return (
-                <article className="event-card" key={event.id} style={{ '--card-index': index }}>
-                  <div className="event-card-top">
-                    <span className={`status-tag ${isOpen ? 'status-open' : 'status-other'}`}>
-                      <span />{displayStatus(event.status)}
-                    </span>
-                    <span className="event-number">SESSION / {String(index + 1).padStart(2, '0')}</span>
-                  </div>
-                  <h3>{event.title || 'Untitled session'}</h3>
-                  <div className="event-card-meta">
+          <div className="dashboard-event-grid">
+            {filteredEvents.map((event, index) => (
+              <article className="dashboard-event-card" key={event.id} style={{ '--card-index': index }}>
+                <div className="event-image">
+                  <img src={EVENT_IMAGES[index % EVENT_IMAGES.length]} alt="" loading="lazy" />
+                  <span className={`event-status ${canRegister(event.status) ? 'status-upcoming' : 'status-muted'}`}>
+                    <i />{displayStatus(event.status)}
+                  </span>
+                  <code>EVT / {String(index + 1).padStart(2, '0')}</code>
+                </div>
+                <div className="dashboard-event-content">
+                  <div className="event-caption"><span>ON CAMPUS</span><span>{String(event.id).slice(0, 8)}</span></div>
+                  <h3>{event.title || 'Untitled event'}</h3>
+                  <div className="event-facts">
                     <span><UsersRound size={15} /> {event.capacity ?? '—'} places</span>
-                    <span className="event-id">{String(event.id).slice(0, 8)}</span>
+                    <span><MapPin size={14} /> Organizer {String(event.organizer_id || '—').slice(0, 8)}</span>
                   </div>
-                  <button className="event-link" onClick={() => openEvent(event)} type="button">
-                    Explore session <ArrowUpRight size={17} />
+                  <button className="event-action" onClick={() => openEvent(event)} type="button">
+                    {canRegister(event.status) ? 'Explore & RSVP' : 'View event'} <ArrowUpRight size={17} />
                   </button>
-                </article>
-              )
-            })}
+                </div>
+              </article>
+            ))}
           </div>
         ) : (
-          <div className="state-panel empty-panel">
+          <div className="dashboard-state empty-state">
             <Search size={21} />
-            <div><strong>No sessions found</strong><p>Try a different search or switch back to all sessions.</p></div>
-            <button className="text-button" onClick={() => { setQuery(''); setFilter('all') }} type="button">Clear filters <ArrowUpRight size={16} /></button>
+            <div><strong>No events found</strong><p>Try another search or clear the current filter.</p></div>
+            <button className="retry-button" onClick={() => { setQuery(''); setFilter('all') }} type="button">Clear filters <ArrowUpRight size={16} /></button>
           </div>
         )}
-
-        <footer className="page-footer">
-          <span>MADE FOR THE MAKERS, THINKERS & DOERS.</span>
-          <span>CONNECTED TO <b>{new URL(API_BASE_URL).hostname}</b></span>
-        </footer>
       </section>
+
+      <footer className="dashboard-footer">
+        <a className="campus-brand footer-brand" href="#top"><span className="brand-mark"><Zap size={15} fill="currentColor" /></span><span>Campus<b>Pulse</b></span></a>
+        <span>Powered by your live campus events API</span>
+        <span><i /> ALL SYSTEMS OPERATIONAL</span>
+      </footer>
 
       {(activeEvent || myRegistrations !== null) && (
         <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) { closeEvent(); setMyRegistrations(null) } }}>
@@ -265,7 +306,7 @@ export default function App() {
                     value={userId}
                   />
                   <p>Your attendee ID is saved only in this browser. No password or sign-in is used.</p>
-                  <button className="primary-button" disabled={submitting || !String(activeEvent.status).toLowerCase().includes('open')} type="submit">
+                  <button className="primary-button" disabled={submitting || !canRegister(activeEvent.status)} type="submit">
                     {submitting ? 'Reserving…' : 'Reserve a place'} <ArrowUpRight size={17} />
                   </button>
                 </form>
